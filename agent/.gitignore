@@ -1,6 +1,10 @@
 *.ts
 !index.ts
 !character.ts
+!defaultCharacter.ts
+!mainCharacter.ts
+!trendsAction.ts
+!trendsProvider.ts
 .env
 *.env
 .env*
