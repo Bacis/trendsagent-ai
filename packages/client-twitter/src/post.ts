@@ -7,6 +7,7 @@ import {
     ModelClass,
     stringToUuid,
     parseBooleanFromText,
+    parseJSONObjectFromText,
 } from "@ai16z/eliza";
 import { elizaLogger } from "@ai16z/eliza";
 import { ClientBase } from "./base.ts";
@@ -156,14 +157,56 @@ export class TwitterPostClient {
                     continue;
                 }
 
-                const testActionTemplate = `You are a professional content marketing specialist.
-Your task is to rewrite the following content in an engaging, professional style suitable for Twitter.
-The content should be clear, concise, and optimized for social media engagement while maintaining accuracy.
+                // Sanitize memory content by removing markdown formatting
+                const sanitizedText = memory.content.text
+                    .replace(/\*\*/g, "") // Remove bold
+                    .replace(/\*/g, "") // Remove italic
+                    .replace(/\[(\d+)\]/g, "") // Remove reference numbers like [1]
+                    .replace(/#{1,6}\s/g, "") // Remove heading markers
+                    .replace(/\[(.*?)\]\((.*?)\)/g, "$1") // Convert links to just text
+                    .replace(/`/g, "") // Remove code formatting
+                    .replace(/>/g, "") // Remove blockquotes
+                    .replace(/\n\s*\n/g, "\n") // Collapse multiple newlines
+                    .trim();
 
-Original content:
-{{actionResponse}}
+                // Update the memory content with sanitized text
+                memory.content.text = sanitizedText;
 
-Please rewrite this content in your professional content marketing voice. Do not use any emojis.`;
+                const testActionTemplate = `You are a twitter shitposter, an expert at sharing viral trends.
+                Your task is to rewrite the following content into a multi-part tweet thread.
+
+                IMPORTANT REQUIREMENTS:
+                - ALWAYS generate a FULL with at least 3-8 tweet parts
+                - Each tweet part must be under 280 and more than 250 characters
+                - Last tweet part can be under 250 characters
+                - Never use emojis or emoticons of any kind
+
+                Following content:
+                {{actionResponse}}
+
+                Output Format (JSON):
+                \`\`\`json
+                {
+                    "thread": [
+                        "First tweet part (max 280 chars)",
+                        "Second tweet part (max 280 chars)",
+                        "Third tweet part (max 280 chars)",
+                        "Fourth tweet part (max 280 chars, optional)"
+                    ]
+                }
+                \`\`\`
+
+                Example of good output:
+                \`\`\`json
+                {
+                    "thread": [
+                        "Breaking: CHILLGUY token explodes 482,260% in 2 months. Young traders on TikTok are rewriting crypto rules.",
+                        "Market cap soars to $374M. Traditional finance can't ignore the memecoin revolution happening on social platforms.",
+                        "Data reveals: 68% of Gen Z investors discovered CHILLGUY through viral TikTok content. Social media is the new stock market.",
+                        "Trend alert: Memecoins aren't just jokes anymore. They're a serious investment strategy challenging Wall Street's old guard."
+                    ]
+                }
+                \`\`\``;
 
                 const state = await this.runtime.composeState(
                     {
@@ -172,7 +215,6 @@ Please rewrite this content in your professional content marketing voice. Do not
                         agentId: this.runtime.agentId,
                         content: {
                             text: memory.content.text,
-                            action: "ANALYZE_TRENDS",
                         },
                     },
                     {
@@ -186,67 +228,44 @@ Please rewrite this content in your professional content marketing voice. Do not
                     template: testActionTemplate,
                 });
 
-                const newTweetContent = await generateText({
+                const threadResponse = await generateText({
                     runtime: this.runtime,
                     context,
                     modelClass: ModelClass.SMALL,
                 });
 
+                // Parse JSON thread response
+                const parsedThread = parseJSONObjectFromText(threadResponse);
+                const tweetParts = parsedThread?.thread || [threadResponse];
+
+                // Additional emoji removal pass
+                const sanitizedTweetParts = tweetParts.map((part) =>
+                    part.replace(
+                        /[\u{1F300}-\u{1F9FF}]|[\u{2700}-\u{27BF}]|[\u{2600}-\u{26FF}]/gu,
+                        ""
+                    )
+                );
+
                 elizaLogger.debug(
                     "generate post prompt from memory:\n" + context
                 );
 
-                // Replace \n with proper line breaks and trim excess spaces
-                const formattedTweet = newTweetContent
-                    .replaceAll(/\\n/g, "\n")
-                    .trim();
-
-                // Split into thread if content is too long
-                const MAX_TWEET_LENGTH = 280;
-                let tweetParts: string[] = [];
-
-                if (formattedTweet.length > MAX_TWEET_LENGTH) {
-                    // Split content into sentences and group them into tweet-sized chunks
-                    const sentences = formattedTweet.match(
-                        /[^.!?]+[.!?]+/g
-                    ) || [formattedTweet];
-                    let currentTweet = "";
-
-                    for (const sentence of sentences) {
-                        if (
-                            (currentTweet + sentence).length <= MAX_TWEET_LENGTH
-                        ) {
-                            currentTweet += sentence;
-                        } else {
-                            if (currentTweet) {
-                                tweetParts.push(currentTweet.trim());
-                            }
-                            currentTweet = sentence;
-                        }
-                    }
-                    if (currentTweet) {
-                        tweetParts.push(currentTweet.trim());
-                    }
-                } else {
-                    tweetParts = [truncateToCompleteSentence(formattedTweet)];
-                }
-
                 if (this.runtime.getSetting("TWITTER_DRY_RUN") === "true") {
                     elizaLogger.info(
-                        `Dry run: would have posted tweet thread from memory: ${tweetParts.join("\n---\n")}`
+                        `Dry run: would have posted tweet thread from memory: ${sanitizedTweetParts.join("\n---\n")}`
                     );
                     continue;
                 }
 
                 try {
                     elizaLogger.log(
-                        `Posting new tweet thread from memory with ${tweetParts.length} parts`
+                        `Posting new tweet thread from memory with ${sanitizedTweetParts.length} parts`
                     );
 
                     let previousTweetId: string | undefined;
                     let firstTweet: Tweet | undefined;
 
-                    for (const content of tweetParts) {
+                    for (const content of sanitizedTweetParts) {
                         const result = await this.client.requestQueue.add(
                             async () =>
                                 await this.client.twitterClient.sendTweet(

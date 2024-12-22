@@ -16,10 +16,16 @@ import {
 } from "@ai16z/eliza";
 import { stringToUuid } from "@ai16z/eliza";
 import { settings } from "@ai16z/eliza";
+import OpenAI from "openai";
 import { createApiRouter } from "./api.ts";
 import * as fs from "fs";
 import * as path from "path";
 const upload = multer({ storage: multer.memoryStorage() });
+
+const client = new OpenAI({
+    apiKey: process.env.OPENROUTER_API_KEY,
+    baseURL: "https://openrouter.ai/api/v1",
+});
 
 export const messageHandlerTemplate =
     // {{goals}}
@@ -50,6 +56,31 @@ Note that {{agentName}} is capable of reading/seeing/hearing various forms of me
 
 # Instructions: Write the next message for {{agentName}}.
 ` + messageCompletionFooter;
+
+const analyticsPrompt = `
+Core Analysis Requirements:
+
+Engagement Metrics:
+- Total mentions/posts volume
+- Average daily post frequency
+- Peak posting times/dates
+- Engagement rate (likes + shares + comments / total posts)
+- Top performing posts (minimum 3)
+
+Content Analysis:
+- Top 5 most used related hashtags
+- Common phrases/keywords (minimum 10)
+- Content type breakdown (text, image, video %)
+- Key themes and narratives
+
+Growth Patterns:
+- Day-over-day growth rate
+- Viral coefficient (if applicable)
+- Content spread patterns
+- Platform crossover rate
+
+Please provide all numerical data with specific percentages, counts, or ratios. Include benchmarks against industry averages where possible.
+`;
 
 export interface SimliClientConfig {
     apiKey: string;
@@ -129,6 +160,108 @@ export class DirectClient {
 
                 const data = await response.json();
                 res.json(data);
+            }
+        );
+
+        this.app.post(
+            "/:agentId/trends",
+            async (req: express.Request, res: express.Response) => {
+                const agentId = req.params.agentId;
+                const roomId = stringToUuid(
+                    req.body.roomId ?? "default-room-" + agentId
+                );
+                const userId = stringToUuid(req.body.userId ?? "user");
+
+                let runtime = this.agents.get(agentId);
+
+                // if runtime is null, look for runtime with the same name
+                if (!runtime) {
+                    runtime = Array.from(this.agents.values()).find(
+                        (a) =>
+                            a.character.name.toLowerCase() ===
+                            agentId.toLowerCase()
+                    );
+                }
+
+                if (!runtime) {
+                    res.status(404).send("Agent not found");
+                    return;
+                }
+
+                await runtime.ensureConnection(
+                    userId,
+                    roomId,
+                    req.body.userName,
+                    req.body.name,
+                    "direct"
+                );
+
+                const text = req.body.text;
+                const _messageId = stringToUuid(Date.now().toString());
+
+                const content: Content = {
+                    text,
+                    attachments: [],
+                    source: "direct",
+                    inReplyTo: undefined,
+                };
+
+                const userMessage = {
+                    content,
+                    userId,
+                    roomId,
+                    agentId: runtime.agentId,
+                };
+
+                // Implement trendsAction with Perplexity
+                try {
+                    const response = await client.chat.completions.create({
+                        model: "perplexity/llama-3.1-sonar-huge-128k-online",
+                        messages: [
+                            {
+                                role: "system",
+                                content:
+                                    "You are a helpful AI assistant that helps to analyze trends and prepare answers in plain text for twitter posts or threads!",
+                            },
+                            {
+                                role: "user",
+                                content: `Please analyze the following social media trend: ${text} ${analyticsPrompt}`,
+                            },
+                        ],
+                    });
+
+                    const trendsResponse = response.choices[0].message.content;
+
+                    const agentMessage: Memory = {
+                        content: {
+                            text: trendsResponse,
+                            attachments: [],
+                            source: "direct",
+                            inReplyTo: undefined,
+                        },
+                        userId: runtime.agentId,
+                        agentId: runtime.agentId,
+                        roomId: stringToUuid(
+                            "perplexity_room-" + runtime.agentId
+                        ),
+                    };
+
+                    await runtime.messageManager.createMemory(agentMessage);
+
+                    res.json({
+                        userMessage,
+                        trendsResponse: response.choices[0].message.content,
+                    });
+                } catch (error) {
+                    console.error("Trends action error:", error);
+                    res.status(500).json({
+                        error: "Failed to fetch trends",
+                        details:
+                            error instanceof Error
+                                ? error.message
+                                : "Unknown error",
+                    });
+                }
             }
         );
 

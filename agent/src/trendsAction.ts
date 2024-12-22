@@ -12,6 +12,31 @@ const client = new OpenAI({
     baseURL: "https://openrouter.ai/api/v1",
 });
 
+const analyticsPrompt = `
+Core Analysis Requirements:
+
+Engagement Metrics:
+- Total mentions/posts volume
+- Average daily post frequency
+- Peak posting times/dates
+- Engagement rate (likes + shares + comments / total posts)
+- Top performing posts (minimum 3)
+
+Content Analysis:
+- Top 5 most used related hashtags
+- Common phrases/keywords (minimum 10)
+- Content type breakdown (text, image, video %)
+- Key themes and narratives
+
+Growth Patterns:
+- Day-over-day growth rate
+- Viral coefficient (if applicable)
+- Content spread patterns
+- Platform crossover rate
+
+Please provide all numerical data with specific percentages, counts, or ratios. Include benchmarks against industry averages where possible.
+`;
+
 export const analyzeTrendsAction: Action = {
     name: "ANALYZE_TRENDS",
     similes: ["ANALYZE_SOCIAL_MEDIA"],
@@ -32,16 +57,21 @@ export const analyzeTrendsAction: Action = {
                         content:
                             "You are a helpful AI assistant that helps to analyze trends and prepare answers in plain text for twitter posts or threads!",
                     },
-                    { role: "user", content: question },
+                    {
+                        role: "user",
+                        content: `Please analyze the following social media trend: ${question}`,
+                    },
                 ],
             });
 
             const roomId = stringToUuid("perplexity_room-" + runtime.agentId);
+            const responseText =
+                response.choices[0].message.content?.trim() || "";
 
             const newMemory: Memory = {
                 content: {
                     question,
-                    text: response.choices[0].message.content,
+                    text: responseText,
                 },
                 userId: runtime.agentId,
                 agentId: runtime.agentId,
@@ -52,7 +82,7 @@ export const analyzeTrendsAction: Action = {
 
             elizaLogger.log("ANALYZE_TRENDS saving memory...", newMemory);
 
-            return response.choices[0].message.content;
+            return responseText;
         } catch (error) {
             console.error("Error:", error);
             throw error;
