@@ -93,7 +93,7 @@ export class TwitterPostClient {
             const delay = randomMinutes * 60 * 1000;
 
             if (Date.now() > lastPostTimestamp + delay) {
-                await this.generateNewTweet();
+                // await this.generateNewTweet();
                 await this.generateNewTweetFromMemory();
             }
 
@@ -112,7 +112,7 @@ export class TwitterPostClient {
             );
         }
         if (postImmediately) {
-            this.generateNewTweet();
+            // this.generateNewTweet();
             this.generateNewTweetFromMemory();
         }
 
@@ -176,7 +176,7 @@ export class TwitterPostClient {
                 Your task is to rewrite the following content into a multi-part tweet thread.
 
                 IMPORTANT REQUIREMENTS:
-                - ALWAYS generate a FULL with at least 3-8 tweet parts
+                - ALWAYS generate a FULL with at least 7-9 tweet parts
                 - Each tweet part must be under 280 and more than 250 characters
                 - Last tweet part can be under 250 characters
                 - Never use emojis or emoticons of any kind
@@ -191,7 +191,13 @@ export class TwitterPostClient {
                         "First tweet part (max 280 chars)",
                         "Second tweet part (max 280 chars)",
                         "Third tweet part (max 280 chars)",
-                        "Fourth tweet part (max 280 chars, optional)"
+                        "Fourth tweet part (max 280 chars, optional)",
+                        "Fourth tweet part (max 280 chars, optional)",
+                        "Fifth tweet part (max 280 chars, optional)",
+                        "Sixth tweet part (max 280 chars, optional)",
+                        "Seventh tweet part (max 280 chars, optional)",
+                        "Eighth tweet part (max 280 chars, optional)",
+                        "Ninth tweet part (max 280 chars, optional)"
                     ]
                 }
                 \`\`\`
@@ -203,7 +209,11 @@ export class TwitterPostClient {
                         "Breaking: CHILLGUY token explodes 482,260% in 2 months. Young traders on TikTok are rewriting crypto rules.",
                         "Market cap soars to $374M. Traditional finance can't ignore the memecoin revolution happening on social platforms.",
                         "Data reveals: 68% of Gen Z investors discovered CHILLGUY through viral TikTok content. Social media is the new stock market.",
-                        "Trend alert: Memecoins aren't just jokes anymore. They're a serious investment strategy challenging Wall Street's old guard."
+                        "Trend alert: Memecoins aren't just jokes anymore. They're a serious investment strategy challenging Wall Street's old guard.",
+                        "CHILLGUY's success shows: Memecoins are more than just jokes. They're a new way to invest in crypto.",
+                        "CHILLGUY's rise: Memecoins are changing the game for young investors.",
+                        "CHILLGUY's impact: Memecoins are shaking up Wall Street's old guard.",
+                        "CHILLGUY's future: Memecoins are the future of crypto investing."
                     ]
                 }
                 \`\`\``;
@@ -369,12 +379,10 @@ export class TwitterPostClient {
                     agentId: this.runtime.agentId,
                     content: {
                         text: topics,
-                        action: "ANALYZE_TRENDS",
                     },
                 },
                 {
                     twitterUserName: this.client.profile.username,
-                    actionResponse: "Perplexity answer",
                 }
             );
 

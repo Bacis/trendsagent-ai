@@ -38,7 +38,7 @@ import { imageGenerationPlugin } from "@ai16z/plugin-image-generation";
 import { evmPlugin } from "@ai16z/plugin-evm";
 import { createNodePlugin } from "@ai16z/plugin-node";
 import { solanaPlugin } from "@ai16z/plugin-solana";
-import { aptosPlugin, TransferAptosToken } from "@ai16z/plugin-aptos";
+import { aptosPlugin } from "@ai16z/plugin-aptos";
 import { teePlugin } from "@ai16z/plugin-tee";
 import Database from "better-sqlite3";
 import fs from "fs";
@@ -47,7 +47,6 @@ import readline from "readline";
 import { fileURLToPath } from "url";
 import yargs from "yargs";
 import { mainCharacter } from "./mainCharacter.ts";
-import { trendsProvider } from "./trendsProvider.ts";
 import { analyzeTrendsAction } from "./trendsAction.ts";
 
 const __filename = fileURLToPath(import.meta.url); // get the resolved path to the file
